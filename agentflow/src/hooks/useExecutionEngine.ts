@@ -2,44 +2,52 @@
 
 import { useRef, useCallback } from 'react';
 import { useAgentStore } from '@/store/agentStore';
-import { AgentStep } from '@/types/agent';
+import { AgentStep, ExecutionMode } from '@/types/agent';
 
-/* ─────────────────────────────────────────────
-   Helpers
-───────────────────────────────────────────── */
 function makeLog(message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') {
     return { id: crypto.randomUUID(), timestamp: new Date(), message, level };
 }
 
-/* Wait while paused — polls every 150ms */
-function waitWhilePaused(pausedRef: React.MutableRefObject<boolean>, stoppedRef: React.MutableRefObject<boolean>) {
-    return new Promise<void>(resolve => {
+/* Poll until condition is true */
+function waitUntil(
+    condition: () => boolean,
+    stopped: React.MutableRefObject<boolean>,
+    intervalMs = 200,
+): Promise<void> {
+    return new Promise(resolve => {
         const check = () => {
-            if (stoppedRef.current || !pausedRef.current) resolve();
-            else setTimeout(check, 150);
+            if (stopped.current || condition()) resolve();
+            else setTimeout(check, intervalMs);
         };
         check();
     });
 }
 
-/* ─────────────────────────────────────────────
-   Hook
-───────────────────────────────────────────── */
+function waitWhilePaused(
+    paused: React.MutableRefObject<boolean>,
+    stopped: React.MutableRefObject<boolean>,
+): Promise<void> {
+    return waitUntil(() => !paused.current, stopped);
+}
+
 export function useExecutionEngine() {
     const isRunningRef = useRef(false);
     const pausedRef = useRef(false);
     const stoppedRef = useRef(false);
     const abortRef = useRef<AbortController | null>(null);
 
-    /* Always read fresh state from Zustand inside async functions */
     const gs = () => useAgentStore.getState();
 
-    /* ── Execute a single step ── */
-    const executeStep = useCallback(async (step: AgentStep, index: number): Promise<boolean> => {
+    /* ── Execute one step ── */
+    const executeStep = useCallback(async (
+        step: AgentStep,
+        index: number,
+        userFeedback?: string,
+    ): Promise<boolean> => {
         const { workflow, updateStep, addLog } = gs();
         if (!workflow) return false;
 
-        updateStep(step.id, { status: 'running', startedAt: new Date() });
+        updateStep(step.id, { status: 'running', startedAt: new Date(), logs: [], output: undefined });
         addLog(step.id, makeLog(`Starting: ${step.title}`));
 
         try {
@@ -59,68 +67,64 @@ export function useExecutionEngine() {
                     stepIndex: index,
                     totalSteps: workflow.steps.length,
                     previousOutputs,
+                    userFeedback,   // pass rejection feedback if rerunnning
                 }),
                 signal: abortRef.current.signal,
             });
 
             if (!res.ok) throw new Error(`Server error ${res.status}`);
-            if (!res.body) throw new Error('Empty response body');
 
-            /* ── Stream parsing ── */
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
+            const data = await res.json();
+            const rawText: string = data.text ?? '';
+
+            /* Parse logs */
+            const logLines = rawText.match(/^LOG:\s*(.+)$/gm) ?? [];
+            for (const line of logLines) {
+                const msg = line.replace(/^LOG:\s*/, '').trim();
+                if (msg) gs().addLog(step.id, makeLog(msg, 'info'));
+                await new Promise(r => setTimeout(r, 250));
+            }
+
+            /* Extract output */
             let output = '';
-            let inOutput = false;
-            let rawText = '';
+            const strict = rawText.match(/OUTPUT_START\r?\n([\s\S]*?)\r?\nOUTPUT_END/);
+            if (strict) output = strict[1].trim();
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                rawText += chunk;
-                buffer += chunk;
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-
-                for (const line of lines) {
-                    const t = line.trim();
-                    if (!t) continue;
-
-                    if (t.startsWith('LOG: ')) {
-                        gs().addLog(step.id, makeLog(t.slice(5), 'info'));
-                    } else if (t === 'OUTPUT_START') {
-                        inOutput = true;
-                    } else if (t === 'OUTPUT_END') {
-                        inOutput = false;
-                    } else if (inOutput) {
-                        output += line + '\n';
-                    }
-                }
+            if (!output) {
+                const loose = rawText.match(/OUTPUT_START([\s\S]*?)OUTPUT_END/);
+                if (loose) output = loose[1].trim();
             }
 
-            /* Handle leftover buffer */
-            if (buffer.trim()) {
-                if (inOutput) output += buffer + '\n';
-            }
-
-            /* Fallback — if model ignored our format, use raw text */
-            if (!output.trim()) {
+            if (!output) {
                 output = rawText
-                    .replace(/LOG:.*\n?/g, '')
-                    .replace(/OUTPUT_START\n?/g, '')
-                    .replace(/OUTPUT_END\n?/g, '')
-                    .trim() || 'Step completed.';
+                    .split('\n')
+                    .filter(l => {
+                        const t = l.trim();
+                        return t && !t.startsWith('LOG:') && t !== 'OUTPUT_START' && t !== 'OUTPUT_END';
+                    })
+                    .join('\n')
+                    .trim();
             }
 
-            gs().updateStep(step.id, {
-                status: 'completed',
-                output: output.trim(),
-                completedAt: new Date(),
-            });
-            gs().addLog(step.id, makeLog('Completed successfully', 'success'));
+            if (!output) output = rawText.trim() || 'Step completed.';
+
+            /* In review mode — mark as awaiting approval instead of completed */
+            const mode = gs().executionMode;
+            if (mode === 'review') {
+                gs().updateStep(step.id, {
+                    status: 'awaiting_approval',
+                    output,
+                });
+                gs().setWorkflowStatus('awaiting_approval');
+            } else {
+                gs().updateStep(step.id, {
+                    status: 'completed',
+                    output,
+                    completedAt: new Date(),
+                });
+                gs().addLog(step.id, makeLog('Completed successfully', 'success'));
+            }
+
             return true;
 
         } catch (err: unknown) {
@@ -137,46 +141,63 @@ export function useExecutionEngine() {
         }
     }, []);
 
-    /* ── Start execution loop ── */
-    const start = useCallback(async () => {
+    /* ── Main execution loop ── */
+    const start = useCallback(async (mode: ExecutionMode) => {
         if (isRunningRef.current) return;
 
-        const { workflow, setWorkflowStatus, setCurrentStep, setFinalOutput } = gs();
+        const { workflow, setWorkflowStatus, setCurrentStep,
+            setFinalOutput, setExecutionMode } = gs();
         if (!workflow || workflow.steps.length === 0) return;
 
         isRunningRef.current = true;
         pausedRef.current = false;
         stoppedRef.current = false;
+
+        setExecutionMode(mode);
         setWorkflowStatus('running');
 
         for (let i = 0; i < workflow.steps.length; i++) {
             if (stoppedRef.current) break;
 
-            /* Wait if paused */
             await waitWhilePaused(pausedRef, stoppedRef);
             if (stoppedRef.current) break;
 
-            /* Always read fresh step from store */
             const currentStep = gs().workflow!.steps[i];
             if (currentStep.status === 'completed' || currentStep.status === 'skipped') continue;
 
             setCurrentStep(i);
-            const ok = await executeStep(currentStep, i);
 
-            if (!ok && !pausedRef.current && !stoppedRef.current) {
+            const ok = await executeStep(currentStep, i);
+            if (!ok && !stoppedRef.current) {
                 setWorkflowStatus('failed');
                 isRunningRef.current = false;
                 return;
             }
 
-            /* Brief pause between steps */
+            /* Review mode — wait for user approval */
+            if (mode === 'review' && !stoppedRef.current) {
+                await waitUntil(() => {
+                    const s = gs().workflow?.steps[i];
+                    return s?.status === 'completed' || s?.status === 'skipped';
+                }, stoppedRef);
+
+                /* If rejected — rerun same step */
+                const afterApproval = gs().workflow?.steps[i];
+                if (afterApproval?.status === 'pending') {
+                    i--; // rerun this index
+                    continue;
+                }
+
+                if (stoppedRef.current) break;
+                gs().setWorkflowStatus('running');
+            }
+
             if (i < workflow.steps.length - 1 && !stoppedRef.current) {
-                await new Promise(r => setTimeout(r, 700));
+                await new Promise(r => setTimeout(r, 600));
             }
         }
 
         if (!stoppedRef.current) {
-            /* Assemble final output from all step outputs */
             const finalSteps = gs().workflow!.steps;
             const finalOutput = finalSteps
                 .filter(s => s.output)
@@ -190,20 +211,16 @@ export function useExecutionEngine() {
         isRunningRef.current = false;
     }, [executeStep]);
 
-    /* ── Pause ── */
     const pause = useCallback(() => {
         pausedRef.current = true;
         gs().setWorkflowStatus('paused');
     }, []);
 
-    /* ── Resume ── */
     const resume = useCallback(() => {
         pausedRef.current = false;
         gs().setWorkflowStatus('running');
-        /* The loop's waitWhilePaused will automatically unblock */
     }, []);
 
-    /* ── Stop (reset to idle) ── */
     const stop = useCallback(() => {
         stoppedRef.current = true;
         isRunningRef.current = false;
@@ -212,29 +229,23 @@ export function useExecutionEngine() {
         gs().setWorkflowStatus('idle');
     }, []);
 
-    /* ── Retry a failed step ── */
     const retryStep = useCallback(async (stepId: string) => {
         const { workflow, updateStep } = gs();
         if (!workflow) return;
-
         const index = workflow.steps.findIndex(s => s.id === stepId);
         if (index === -1) return;
-
-        /* Reset the step */
-        updateStep(stepId, {
-            status: 'pending',
-            logs: [],
-            output: undefined,
-        });
-
+        updateStep(stepId, { status: 'pending', logs: [], output: undefined });
         const fresh = gs().workflow!.steps[index];
         await executeStep(fresh, index);
     }, [executeStep]);
 
-    /* ── Skip a step ── */
     const skipStep = useCallback((stepId: string) => {
         gs().updateStep(stepId, { status: 'skipped', completedAt: new Date() });
         gs().addLog(stepId, makeLog('Skipped by user', 'warning'));
+        /* Unblock review mode wait if active */
+        if (gs().workflow?.status === 'awaiting_approval') {
+            gs().setWorkflowStatus('running');
+        }
     }, []);
 
     return { start, pause, resume, stop, retryStep, skipStep };

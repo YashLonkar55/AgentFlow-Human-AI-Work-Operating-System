@@ -1,37 +1,52 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Zap } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import ExecutionPanel from '@/components/layout/ExecutionPanel';
 import OutputPanel from '@/components/layout/OutputPanel';
+import FinalOutput from '@/components/layout/FinalOutput';
 import CustomCursor from '@/components/landing/CustomCursor';
 import { useAgentStore } from '@/store/agentStore';
 
 export default function AppPage() {
     const router = useRouter();
+    const { workflow } = useAgentStore();
+    const [viewMode, setViewMode] = useState<'execution' | 'output'>('execution');
+
+    /* Auto-switch to output view when workflow completes */
+    useEffect(() => {
+        if (workflow?.status === 'completed') {
+            const t = setTimeout(() => setViewMode('output'), 800);
+            return () => clearTimeout(t);
+        }
+        /* If user resets, go back to execution view */
+        if (!workflow) setViewMode('execution');
+    }, [workflow?.status]);
+
+    const isCompleted = workflow?.status === 'completed';
 
     return (
         <>
             <CustomCursor />
-
-            {/* Background */}
             <div className="app-mesh-bg" />
 
-            {/* Top bar */}
+            {/* ── Top bar ── */}
             <motion.header
                 initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-3 border-b border-black/[0.05]"
+                className="fixed top-0 left-0 right-0 z-50 flex items-center
+                   justify-between px-5 py-3 border-b border-black/[0.05]"
                 style={{
-                    background: 'rgba(255,255,255,0.75)',
+                    background: 'rgba(255,255,255,0.80)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                 }}
             >
-                {/* Left — logo */}
+                {/* Logo */}
                 <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600
                           flex items-center justify-center shadow-sm">
@@ -45,10 +60,10 @@ export default function AppPage() {
                     </span>
                 </div>
 
-                {/* Center — live status pill */}
+                {/* Center status */}
                 <StatusPill />
 
-                {/* Right — back */}
+                {/* Back */}
                 <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
@@ -62,10 +77,10 @@ export default function AppPage() {
                 </motion.button>
             </motion.header>
 
-            {/* 3-panel layout */}
+            {/* ── 3-panel layout ── */}
             <div className="relative z-10 flex h-screen pt-[48px] overflow-hidden">
 
-                {/* Left — Sidebar */}
+                {/* Left — Sidebar (always visible) */}
                 <motion.div
                     initial={{ opacity: 0, x: -24 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -76,39 +91,74 @@ export default function AppPage() {
                     <Sidebar />
                 </motion.div>
 
-                {/* Center — Execution */}
+                {/* Center — switches between Execution and Final Output */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex-1 min-w-0 border-r border-black/[0.05]"
+                    className="flex-1 min-w-0 border-r border-black/[0.05] relative overflow-hidden"
                 >
-                    <ExecutionPanel />
+                    <AnimatePresence mode="wait">
+
+                        {/* Execution Panel */}
+                        {viewMode === 'execution' && (
+                            <motion.div
+                                key="execution"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -40 }}
+                                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                                className="absolute inset-0"
+                            >
+                                <ExecutionPanel
+                                    onViewOutput={() => setViewMode('output')}
+                                    showOutputToggle={isCompleted}
+                                />
+                            </motion.div>
+                        )}
+
+                        {/* Final Output Panel */}
+                        {viewMode === 'output' && (
+                            <motion.div
+                                key="output"
+                                initial={{ opacity: 0, x: 40 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                                className="absolute inset-0 overflow-y-auto"
+                                style={{ background: 'rgba(255,255,255,0.40)' }}
+                            >
+                                <FinalOutput onViewSteps={() => setViewMode('execution')} />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </motion.div>
 
-                {/* Right — Output */}
-                <motion.div
-                    initial={{ opacity: 0, x: 24 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex-shrink-0"
-                    style={{ width: 'var(--output-width)' }}
-                >
-                    <OutputPanel />
-                </motion.div>
+                {/* Right — compact step tracker (only during/after execution) */}
+                <AnimatePresence>
+                    {workflow && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 40, width: 0 }}
+                            animate={{ opacity: 1, x: 0, width: 260 }}
+                            exit={{ opacity: 0, x: 40, width: 0 }}
+                            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                            className="flex-shrink-0 border-l border-black/[0.05] overflow-hidden"
+                        >
+                            <OutputPanel />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
             </div>
         </>
     );
 }
 
-/* ── Status pill — reads live from Zustand store ── */
+/* ── Status pill ── */
 function StatusPill() {
     const { workflow, isPlanning } = useAgentStore();
 
-    const status = isPlanning
-        ? 'planning'
-        : workflow?.status ?? 'idle';
+    const status = isPlanning ? 'planning' : workflow?.status ?? 'idle';
 
     const CONFIG: Record<string, {
         dot: string; label: string; text: string; bg: string;
@@ -135,8 +185,6 @@ function StatusPill() {
         >
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
             {c.label}
-
-            {/* Step counter — only shows when there are steps */}
             {workflow?.steps.length ? (
                 <span className="text-gray-300 font-normal">
                     · {workflow.steps.filter(s => s.status === 'completed').length}/

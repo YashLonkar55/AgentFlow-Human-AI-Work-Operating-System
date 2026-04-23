@@ -25,6 +25,22 @@ const STATUS_CONFIG: Record<StepStatus, {
     badge: string;
     label: string;
 }> = {
+    awaiting_approval: {
+        icon: <CheckCircle2 className="w-3.5 h-3.5 text-violet-500 animate-pulse" />,
+        dot: 'bg-violet-400 animate-pulse',
+        card: 'bg-violet-50/60',
+        border: 'border-violet-200',
+        badge: 'bg-violet-50 text-violet-600 border-violet-200',
+        label: 'Review',
+    },
+    rejected: {
+        icon: <XCircle className="w-3.5 h-3.5 text-red-500" />,
+        dot: 'bg-red-400',
+        card: 'bg-red-50/50',
+        border: 'border-red-200',
+        badge: 'bg-red-50 text-red-600 border-red-200',
+        label: 'Rejected',
+    },
     pending: {
         icon: <Clock className="w-3.5 h-3.5 text-gray-400" />,
         dot: 'bg-gray-300',
