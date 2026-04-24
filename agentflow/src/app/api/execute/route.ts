@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
             : '';
 
         const { text } = await generateText({
-            model: openrouter('openai/gpt-oss-120b:free'),
+            model: openrouter('openai/gpt-5-nano'),
             system: SYSTEM_PROMPT,
             prompt: `Overall goal: ${goal}
 

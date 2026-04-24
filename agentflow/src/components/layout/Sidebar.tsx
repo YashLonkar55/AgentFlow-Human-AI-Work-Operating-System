@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAgentStore } from '@/store/agentStore';
 import { cn } from '@/lib/utils';
+import ChatWindow from '@/components/chat/ChatWindow';
 
 const SUGGESTIONS = [
   'Analyze this dataset and give insights',
@@ -20,16 +21,16 @@ const SUGGESTIONS = [
 const STATUS_MAP: Record<string, {
   label: string; dot: string; bg: string; text: string;
 }> = {
-  idle:      { label: 'Ready',     dot: 'bg-gray-300',                     bg: 'bg-gray-50',    text: 'text-gray-400'    },
-  planning:  { label: 'Planning',  dot: 'bg-blue-400 animate-pulse',       bg: 'bg-blue-50',    text: 'text-blue-600'    },
-  running:   { label: 'Running',   dot: 'bg-violet-400 animate-pulse',     bg: 'bg-violet-50',  text: 'text-violet-600'  },
-  paused:    { label: 'Paused',    dot: 'bg-amber-400',                    bg: 'bg-amber-50',   text: 'text-amber-600'   },
-  completed: { label: 'Completed', dot: 'bg-emerald-400',                  bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  failed:    { label: 'Failed',    dot: 'bg-red-400',                      bg: 'bg-red-50',     text: 'text-red-600'     },
+  idle: { label: 'Ready', dot: 'bg-gray-300', bg: 'bg-gray-50', text: 'text-gray-400' },
+  planning: { label: 'Planning', dot: 'bg-blue-400 animate-pulse', bg: 'bg-blue-50', text: 'text-blue-600' },
+  running: { label: 'Running', dot: 'bg-violet-400 animate-pulse', bg: 'bg-violet-50', text: 'text-violet-600' },
+  paused: { label: 'Paused', dot: 'bg-amber-400', bg: 'bg-amber-50', text: 'text-amber-600' },
+  completed: { label: 'Completed', dot: 'bg-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  failed: { label: 'Failed', dot: 'bg-red-400', bg: 'bg-red-50', text: 'text-red-600' },
 };
 
 export default function Sidebar() {
-  const [input, setInput]             = useState('');
+  const [input, setInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const {
@@ -37,9 +38,9 @@ export default function Sidebar() {
     planWorkflow, resetWorkflow, setPlanError,
   } = useAgentStore();
 
-  const status     = workflow?.status ?? 'idle';
+  const status = workflow?.status ?? 'idle';
   const statusConf = STATUS_MAP[status] ?? STATUS_MAP.idle;
-  const canSubmit  = !!input.trim() && !isPlanning && status !== 'running';
+  const canSubmit = !!input.trim() && !isPlanning && status !== 'running';
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -48,7 +49,7 @@ export default function Sidebar() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden"
-         style={{ background: 'rgba(255,255,255,0.55)' }}>
+      style={{ background: 'rgba(255,255,255,0.55)' }}>
 
       {/* ── Status pill ── */}
       <div className="px-4 pt-4 pb-3">
@@ -115,7 +116,7 @@ export default function Sidebar() {
           {planError && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1,  y:  0 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               className="mt-2 flex items-start gap-2 px-3 py-2.5 rounded-xl
                          bg-red-50 border border-red-200 text-red-600"
@@ -176,7 +177,7 @@ export default function Sidebar() {
         <div className="mt-3 flex gap-2">
           <motion.button
             whileHover={canSubmit ? { scale: 1.02 } : {}}
-            whileTap={canSubmit   ? { scale: 0.97 } : {}}
+            whileTap={canSubmit ? { scale: 0.97 } : {}}
             onClick={handleSubmit}
             disabled={!canSubmit}
             className={cn(
@@ -238,34 +239,27 @@ export default function Sidebar() {
       <div className="mx-4 my-2 border-t border-black/[0.05]" />
 
       {/* ── Chat section ── */}
-      <div className="flex-1 flex flex-col px-4 pb-4 min-h-0">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="mx-4 my-2 border-t border-black/[0.05]" />
+
+      {/* ── Chat section ── */}
+      <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+        <div className="flex items-center gap-2 mb-3 flex-shrink-0">
           <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
             Agent Chat
           </span>
-          <span className="ml-auto text-[10px] font-bold text-gray-300
-                           bg-gray-100 px-2 py-0.5 rounded-full">
-            Phase 6
-          </span>
+          {workflow && (
+            <span className="ml-auto flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[10px] font-bold text-emerald-500">Live</span>
+            </span>
+          )}
         </div>
 
-        <div className="flex-1 rounded-2xl border border-black/[0.05] bg-white/60
-                        flex flex-col items-center justify-center text-center p-6 min-h-0">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-100 to-pink-100
-                          border border-violet-100 flex items-center justify-center mb-3">
-            <MessageSquare className="w-4 h-4 text-violet-400" />
-          </div>
-          <p className="text-xs font-semibold text-gray-400 mb-1">Chat coming soon</p>
-          <p className="text-[11px] text-gray-300 leading-relaxed">
-            Guide the agent mid-execution to modify steps or change approach
-          </p>
-        </div>
-
-        <div className="mt-3 flex gap-2 items-center px-3 py-2.5 rounded-xl
-                        border border-black/[0.07] bg-white shadow-sm opacity-40">
-          <span className="text-xs text-gray-300 flex-1">Ask the agent anything…</span>
-          <Send className="w-3.5 h-3.5 text-gray-300" />
+        {/* Chat window fills remaining space */}
+        <div className="flex-1 rounded-2xl border border-black/[0.06] bg-white/70
+                        overflow-hidden flex flex-col min-h-0 shadow-sm">
+          <ChatWindow />
         </div>
       </div>
 

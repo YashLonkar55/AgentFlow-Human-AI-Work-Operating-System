@@ -36,6 +36,11 @@ interface AgentStore {
   // Chat
   addChatMessage: (message: ChatMessage) => void;
   setIsChatOpen: (v: boolean) => void;
+
+  // Step editing
+  modifyStep: (stepId: string, updates: { title?: string; description?: string }) => void;
+  addStep: (title: string, description: string, afterStepId?: string) => void;
+  skipStep: (stepId: string) => void;
 }
 
 export const useAgentStore = create<AgentStore>()(
@@ -171,5 +176,41 @@ export const useAgentStore = create<AgentStore>()(
 
     addChatMessage: (m) => set(s => { s.chat.push(m); }),
     setIsChatOpen: (v) => set(s => { s.isChatOpen = v; }),
+
+    modifyStep: (stepId, updates) => set(s => {
+      if (!s.workflow) return;
+      const step = s.workflow.steps.find(x => x.id === stepId);
+      if (!step) return;
+      if (updates.title) step.title = updates.title;
+      if (updates.description) step.description = updates.description;
+    }),
+
+    addStep: (title, description, afterStepId) => set(s => {
+      if (!s.workflow) return;
+      const newStep: AgentStep = {
+        id: `step_${Date.now()}`,
+        title,
+        description,
+        status: 'pending',
+        logs: [],
+      };
+      if (afterStepId) {
+        const idx = s.workflow.steps.findIndex(x => x.id === afterStepId);
+        if (idx !== -1) {
+          s.workflow.steps.splice(idx + 1, 0, newStep);
+          return;
+        }
+      }
+      s.workflow.steps.push(newStep);
+    }),
+
+    skipStep: (stepId) => set(s => {
+      if (!s.workflow) return;
+      const step = s.workflow.steps.find(x => x.id === stepId);
+      if (step) {
+        step.status = 'skipped';
+        step.completedAt = new Date();
+      }
+    }),
   })),
 );

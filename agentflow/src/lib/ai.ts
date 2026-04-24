@@ -4,4 +4,4 @@ export const openrouter = createOpenRouter({
     apiKey: process.env.OPENROUTER_API_KEY!,
 });
 
-export const planningModel = openrouter('openai/gpt-oss-120b:free');
+export const planningModel = openrouter('openai/gpt-5-nano');
