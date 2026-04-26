@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -248,9 +248,88 @@ function ExportMenu({ text, goal, onSwitchToFull }: { text: string; goal: string
     };
 
     const printOutput = () => {
-        onSwitchToFull();             // ← switch to full tab first
+        onSwitchToFull();
         setOpen(false);
-        setTimeout(() => window.print(), 150);  // small delay for tab to render
+
+        setTimeout(() => {
+            const el = document.getElementById('print-output');
+            if (!el) return;
+
+            const win = window.open('', '_blank', 'width=900,height=700');
+            if (!win) { alert('Please allow popups for printing.'); return; }
+
+            win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${goal}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #111827; padding: 56px; max-width: 860px;
+      margin: 0 auto; line-height: 1.6; background: white;
+    }
+    .print-header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 2px solid #e5e7eb; }
+    .print-label { font-size: 11px; font-weight: 800; text-transform: uppercase;
+                   letter-spacing: 0.1em; color: #9ca3af; margin-bottom: 8px; }
+    .print-goal { font-size: 28px; font-weight: 800; color: #111827; margin-bottom: 6px; }
+    .print-meta { font-size: 13px; color: #9ca3af; }
+    h1 { font-size: 24px; font-weight: 800; margin: 28px 0 12px; color: #111827; }
+    h2 { font-size: 19px; font-weight: 700; margin: 24px 0 10px; padding-bottom: 8px;
+         border-bottom: 1px solid #e5e7eb; color: #111827; }
+    h3 { font-size: 16px; font-weight: 700; margin: 18px 0 8px; color: #1f2937; }
+    h4 { font-size: 14px; font-weight: 700; margin: 14px 0 6px; color: #374151; }
+    p  { font-size: 14px; line-height: 1.75; margin-bottom: 12px; color: #374151; }
+    ul { margin: 0 0 14px 20px; }
+    ol { margin: 0 0 14px 20px; list-style: decimal; }
+    li { font-size: 14px; color: #374151; margin-bottom: 5px; line-height: 1.65; }
+    strong { font-weight: 700; color: #111827; }
+    em { font-style: italic; }
+    blockquote { border-left: 4px solid #8b5cf6; background: #f5f3ff;
+                 padding: 12px 18px; margin: 18px 0; border-radius: 0 8px 8px 0; }
+    blockquote p { color: #4c1d95; font-style: italic; margin: 0; }
+    code { background: #f3f4f6; color: #7c3aed; padding: 2px 6px;
+           border-radius: 4px; font-family: monospace; font-size: 13px; }
+    pre  { background: #111827; color: #34d399; padding: 18px; border-radius: 10px;
+           overflow: auto; margin: 16px 0; font-size: 13px; }
+    pre code { background: none; color: inherit; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+    th { background: #f9fafb; padding: 10px 14px; text-align: left; font-weight: 700;
+         font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+         color: #6b7280; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+    a  { color: #2563eb; text-decoration: underline; }
+    .step-label { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
+    .step-num { width: 24px; height: 24px; background: #ecfdf5; border: 1.5px solid #a7f3d0;
+                border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                font-size: 10px; font-weight: 900; color: #065f46; flex-shrink: 0; }
+    .step-name { font-size: 11px; font-weight: 900; text-transform: uppercase;
+                 letter-spacing: 0.1em; color: #6b7280; }
+    .step-line { flex: 1; height: 1px; background: #e5e7eb; }
+    .step-content { background: white; border: 1px solid #f3f4f6;
+                    border-radius: 14px; padding: 28px; margin-bottom: 8px;
+                    page-break-inside: avoid; }
+    .section-sep { display: flex; align-items: center; gap: 10px; margin: 28px 0; }
+    .section-sep-line { flex: 1; height: 1px; background: #f3f4f6; }
+    .section-sep-dot { width: 6px; height: 6px; border-radius: 50%; background: #e5e7eb; }
+    @media print {
+      body { padding: 32px; }
+      .step-content { page-break-inside: avoid; }
+      h2 { page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  ${el.innerHTML}
+</body>
+</html>`);
+
+            win.document.close();
+            win.focus();
+            setTimeout(() => { win.print(); }, 400);
+        }, 250);
     };
     return (
         <div className="relative">
@@ -355,24 +434,72 @@ function StepOutputCard({
     title: string; content: string; index: number;
     isExpanded: boolean; onToggle: () => void; highlight?: string;
 }) {
+    const contentRef = useRef<HTMLDivElement>(null);
     const wordCount = content.split(/\s+/).filter(Boolean).length;
 
-    const highlightText = (text: string, q: string) => {
-        if (!q) return text;
-        const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-        const parts = text.split(re);
-        return parts.map((p, i) =>
-            re.test(p)
-                ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5">{p}</mark>
-                : p,
+    /* DOM-based search highlighting — works on rendered markdown */
+    useEffect(() => {
+        const el = contentRef.current;
+        if (!el) return;
+
+        /* Remove old highlights */
+        el.querySelectorAll('mark.sh').forEach(mark => {
+            const parent = mark.parentNode;
+            if (!parent) return;
+            parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+            parent.normalize();
+        });
+
+        if (!highlight || highlight.trim().length < 2) return;
+
+        /* Walk all text nodes */
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+            acceptNode: node => {
+                const tag = (node.parentElement?.tagName ?? '').toUpperCase();
+                return ['SCRIPT', 'STYLE', 'MARK'].includes(tag)
+                    ? NodeFilter.FILTER_REJECT
+                    : NodeFilter.FILTER_ACCEPT;
+            },
+        });
+
+        const textNodes: Text[] = [];
+        let node: Node | null;
+        while ((node = walker.nextNode())) textNodes.push(node as Text);
+
+        const re = new RegExp(
+            highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            'gi',
         );
-    };
+
+        textNodes.forEach(textNode => {
+            const text = textNode.textContent || '';
+            if (!re.test(text)) return;
+            re.lastIndex = 0;
+
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            let m: RegExpExecArray | null;
+
+            while ((m = re.exec(text)) !== null) {
+                if (m.index > last)
+                    frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                const mark = document.createElement('mark');
+                mark.className = 'sh bg-yellow-200 text-yellow-900 rounded px-0.5';
+                mark.textContent = m[0];
+                frag.appendChild(mark);
+                last = m.index + m[0].length;
+            }
+
+            if (last < text.length)
+                frag.appendChild(document.createTextNode(text.slice(last)));
+
+            textNode.parentNode?.replaceChild(frag, textNode);
+        });
+    }, [highlight, isExpanded]);
 
     return (
-        <div className={cn(
-            'rounded-2xl border bg-white shadow-sm overflow-hidden transition-all duration-200',
-            isExpanded ? 'border-violet-200' : 'border-black/[0.07]',
-        )}>
+        <div className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-all duration-200
+      ${isExpanded ? 'border-violet-200' : 'border-black/[0.07]'}`}>
             <button
                 onClick={onToggle}
                 className="w-full flex items-center gap-3 px-5 py-4
@@ -382,7 +509,6 @@ function StepOutputCard({
                          flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 </span>
-
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-gray-300 font-mono">
@@ -390,17 +516,9 @@ function StepOutputCard({
                         </span>
                         <span className="text-sm font-bold text-gray-800 truncate">{title}</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 font-medium">
-                        {wordCount} words
-                    </span>
+                    <span className="text-[10px] text-gray-400 font-medium">{wordCount} words</span>
                 </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <ChevronRight className={cn(
-                        'w-4 h-4 text-gray-400 transition-transform duration-200',
-                        isExpanded && 'rotate-90',
-                    )} />
-                </div>
+                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
             </button>
 
             <AnimatePresence initial={false}>
@@ -413,19 +531,14 @@ function StepOutputCard({
                         className="overflow-hidden"
                     >
                         <div className="px-5 pb-6 border-t border-black/[0.05]">
-                            <div className="mt-5">
-                                {highlight ? (
-                                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                                        {highlightText(content, highlight)}
-                                    </p>
-                                ) : (
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        components={md as Record<string, unknown>}
-                                    >
-                                        {content}
-                                    </ReactMarkdown>
-                                )}
+                            {/* Rendered markdown — highlighting applied via DOM */}
+                            <div ref={contentRef} className="mt-5">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={md as Record<string, unknown>}
+                                >
+                                    {content}
+                                </ReactMarkdown>
                             </div>
                         </div>
                     </motion.div>
@@ -634,29 +747,54 @@ export default function FinalOutput({ onViewSteps }: { onViewSteps: () => void }
                                     <div
                                         id="print-output"
                                         className="max-w-3xl mx-auto bg-white rounded-3xl
-                 border border-black/[0.06] p-10 shadow-sm"
+                                                   border border-black/[0.06] p-10 shadow-sm"
                                     >
-                                        {/* Print header — only visible when printing */}
-                                        <div className="hidden print:block mb-8 pb-6 border-b border-gray-200">
-                                            <p className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-1">
+                                        {/* Print header */}
+                                        <div className="print-header hidden print:block mb-8 pb-6 border-b-2 border-gray-200">
+                                            <p className="print-label text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                                                 Generated by AgentFlow
                                             </p>
-                                            <h1 className="text-2xl font-bold text-gray-900">{workflow?.goal}</h1>
-                                            <p className="text-sm text-gray-400 mt-1">
-                                                {new Date().toLocaleDateString('en-US', {
-                                                    year: 'numeric', month: 'long', day: 'numeric',
-                                                })}
-                                                {' · '}
-                                                {workflow?.steps.filter(s => s.status === 'completed').length} steps completed
+                                            <h1 className="print-goal text-2xl font-bold text-gray-900 mb-1">{workflow?.goal}</h1>
+                                            <p className="print-meta text-xs text-gray-400">
+                                                {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                                {' · '}{completedSteps.length} steps completed
                                             </p>
                                         </div>
 
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={md as Record<string, unknown>}
-                                        >
-                                            {finalOutput || '*No output generated.*'}
-                                        </ReactMarkdown>
+                                        {/* Step outputs — structured for print */}
+                                        {completedSteps.map((step, i) => (
+                                            <div key={step.id}>
+                                                <div className="step-label flex items-center gap-3 mb-4" style={{ marginTop: i === 0 ? 0 : 36 }}>
+                                                    <div className="step-num w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200
+                                                                    flex items-center justify-center flex-shrink-0">
+                                                        <span className="text-[9px] font-black text-emerald-600">
+                                                            {String(i + 1).padStart(2, '0')}
+                                                        </span>
+                                                    </div>
+                                                    <span className="step-name text-xs font-black text-gray-400 uppercase tracking-widest">
+                                                        {step.title}
+                                                    </span>
+                                                    <div className="step-line flex-1 h-px bg-gray-100" />
+                                                </div>
+
+                                                <div className="step-content">
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={md as Record<string, unknown>}
+                                                    >
+                                                        {step.output ?? ''}
+                                                    </ReactMarkdown>
+                                                </div>
+
+                                                {i < completedSteps.length - 1 && (
+                                                    <div className="section-sep flex items-center gap-3 my-8">
+                                                        <div className="flex-1 h-px bg-gray-100" />
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
+                                                        <div className="flex-1 h-px bg-gray-100" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </motion.div>
                             )}

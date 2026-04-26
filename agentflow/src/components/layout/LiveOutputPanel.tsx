@@ -7,7 +7,6 @@ import remarkGfm from 'remark-gfm';
 import { FileText, Sparkles, Bot } from 'lucide-react';
 import { useAgentStore } from '@/store/agentStore';
 
-/* ── Markdown components (same as FinalOutput) ── */
 const md = {
     h1: ({ children }: { children?: React.ReactNode }) => (
         <h1 className="font-display text-2xl font-bold text-gray-950 mt-6 mb-3 tracking-tight first:mt-0">{children}</h1>
@@ -48,7 +47,8 @@ const md = {
             </pre>
         );
         return (
-            <code className="bg-violet-50 text-violet-700 border border-violet-100 px-1.5 py-0.5 rounded-md text-xs font-mono font-bold">
+            <code className="bg-violet-50 text-violet-700 border border-violet-100
+                       px-1.5 py-0.5 rounded-md text-xs font-mono font-bold">
                 {children}
             </code>
         );
@@ -79,44 +79,60 @@ const md = {
     ),
 };
 
+/* ── Glow reveal animation ── */
+function GlowReveal({ children }: { children: React.ReactNode }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+            className="relative"
+        >
+            {/* Sweep shine overlay */}
+            <motion.div
+                initial={{ x: '-100%', opacity: 0.7 }}
+                animate={{ x: '200%', opacity: 0 }}
+                transition={{ duration: 1.4, ease: 'easeOut', delay: 0.1 }}
+                className="absolute inset-0 z-10 pointer-events-none"
+                style={{
+                    background: 'linear-gradient(105deg, transparent 30%, rgba(139,92,246,0.12) 50%, rgba(59,130,246,0.10) 60%, transparent 70%)',
+                    mixBlendMode: 'screen',
+                }}
+            />
+            {children}
+        </motion.div>
+    );
+}
+
+/* ── Main panel ── */
 export default function LiveOutputPanel() {
     const { workflow } = useAgentStore();
     const bottomRef = useRef<HTMLDivElement>(null);
-    const [liveText, setLiveText] = useState('');
 
-    /* Build live output from all completed steps */
     const completedSteps = workflow?.steps.filter(
         s => (s.status === 'completed' || s.status === 'awaiting_approval') && s.output,
     ) ?? [];
 
     const runningStep = workflow?.steps.find(s => s.status === 'running');
-
-    /* Assemble markdown from completed steps */
-    useEffect(() => {
-        const text = completedSteps
-            .map(s => `## ${s.title}\n\n${s.output}`)
-            .join('\n\n---\n\n');
-        setLiveText(text);
-    }, [completedSteps.length, completedSteps.map(s => s.output).join('')]);
+    const hasContent = completedSteps.length > 0;
+    const isRunning = workflow?.status === 'running';
 
     /* Auto-scroll as content grows */
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [liveText, runningStep?.logs.length]);
-
-    const hasContent = completedSteps.length > 0;
-    const isRunning = workflow?.status === 'running';
+    }, [completedSteps.length, runningStep?.logs.length]);
 
     return (
         <div className="flex flex-col h-full" style={{ background: 'rgba(255,255,255,0.5)' }}>
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4
-                      border-b border-black/[0.06] flex-shrink-0
-                      bg-white/70 backdrop-blur-sm">
+            <div
+                className="flex items-center justify-between px-6 py-4
+                   border-b border-black/[0.06] flex-shrink-0 bg-white/80 backdrop-blur-sm"
+            >
                 <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-emerald-50
-                          to-teal-50 border border-emerald-100 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50
+                          border border-emerald-100 flex items-center justify-center">
                         <FileText className="w-3.5 h-3.5 text-emerald-500" />
                     </div>
                     <h2 className="text-sm font-bold text-gray-800">Live Output</h2>
@@ -128,7 +144,6 @@ export default function LiveOutputPanel() {
                     )}
                 </div>
 
-                {/* Live indicator */}
                 <AnimatePresence>
                     {isRunning && (
                         <motion.div
@@ -147,43 +162,42 @@ export default function LiveOutputPanel() {
                 </AnimatePresence>
             </div>
 
-            {/* Content */}
+            {/* Content — full width, no max-w constraint */}
             <div className="flex-1 overflow-y-auto">
                 {!hasContent && !isRunning ? (
-                    /* Empty state */
                     <EmptyOutputState hasWorkflow={!!workflow} />
                 ) : (
-                    <div className="px-8 py-8 max-w-3xl mx-auto">
+                    <div className="px-10 py-8 w-full">
 
-                        {/* Goal header */}
+                        {/* Goal */}
                         {workflow && (
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="mb-8"
+                                className="mb-10 pb-8 border-b border-black/[0.05]"
                             >
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                                     Goal
                                 </p>
-                                <h1 className="text-xl font-bold text-gray-900 font-display tracking-tight">
+                                <h1 className="text-2xl font-bold text-gray-900 font-display tracking-tight leading-snug">
                                     {workflow.goal}
                                 </h1>
                             </motion.div>
                         )}
 
-                        {/* Rendered completed step outputs */}
+                        {/* Completed step outputs */}
                         <AnimatePresence>
                             {completedSteps.map((step, i) => (
                                 <motion.div
                                     key={step.id}
-                                    initial={{ opacity: 0, y: 16 }}
+                                    initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                                    className="mb-8"
+                                    className="mb-10"
                                 >
-                                    {/* Step label */}
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-5 h-5 rounded-full bg-emerald-100 border border-emerald-200
+                                    {/* Step label row */}
+                                    <div className="flex items-center gap-3 mb-5">
+                                        <div className="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-200
                                     flex items-center justify-center flex-shrink-0">
                                             <span className="text-[9px] font-black text-emerald-600">
                                                 {String(i + 1).padStart(2, '0')}
@@ -192,44 +206,44 @@ export default function LiveOutputPanel() {
                                         <span className="text-xs font-black text-gray-400 uppercase tracking-widest">
                                             {step.title}
                                         </span>
-                                        <div className="flex-1 h-px bg-black/[0.06]" />
+                                        <div className="flex-1 h-px bg-black/[0.05]" />
                                     </div>
 
-                                    {/* Markdown output */}
-                                    <div className="bg-white rounded-2xl border border-black/[0.06]
-                                  p-6 shadow-sm">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={md as Record<string, unknown>}
-                                        >
-                                            {step.output ?? ''}
-                                        </ReactMarkdown>
+                                    {/* Output card with typewriter */}
+                                    <div className="bg-white rounded-2xl border border-black/[0.06] px-8 py-6 shadow-sm">
+                                        <GlowReveal>
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={md as Record<string, unknown>}
+                                            >
+                                                {step.output ?? ''}
+                                            </ReactMarkdown>
+                                        </GlowReveal>
                                     </div>
 
-                                    {/* Separator */}
+                                    {/* Separator between steps */}
                                     {i < completedSteps.length - 1 && (
-                                        <div className="mt-8 flex items-center gap-3">
-                                            <div className="flex-1 h-px bg-black/[0.05]" />
+                                        <div className="mt-10 flex items-center gap-3">
+                                            <div className="flex-1 h-px bg-black/[0.04]" />
                                             <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
-                                            <div className="flex-1 h-px bg-black/[0.05]" />
+                                            <div className="flex-1 h-px bg-black/[0.04]" />
                                         </div>
                                     )}
                                 </motion.div>
                             ))}
                         </AnimatePresence>
 
-                        {/* Running step indicator — shows while current step executes */}
+                        {/* Currently running step */}
                         <AnimatePresence>
                             {runningStep && (
                                 <motion.div
                                     initial={{ opacity: 0, y: 12 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -8 }}
-                                    className="mt-6"
+                                    className="mt-4"
                                 >
-                                    {/* Step label */}
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-200
+                                    <div className="flex items-center gap-3 mb-5">
+                                        <div className="w-6 h-6 rounded-full bg-blue-100 border border-blue-200
                                     flex items-center justify-center flex-shrink-0">
                                             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                                         </div>
@@ -239,20 +253,16 @@ export default function LiveOutputPanel() {
                                         <div className="flex-1 h-px bg-blue-100" />
                                     </div>
 
-                                    {/* Typing skeleton */}
-                                    <div className="bg-white rounded-2xl border border-blue-100 p-6 shadow-sm">
-                                        <div className="flex items-start gap-3 mb-4">
-                                            <div className="w-6 h-6 rounded-full bg-blue-50 border border-blue-100
-                                      flex items-center justify-center flex-shrink-0">
-                                                <Bot className="w-3 h-3 text-blue-400" />
+                                    <div className="bg-white rounded-2xl border border-blue-100 px-8 py-6 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-5">
+                                            <div className="w-7 h-7 rounded-full bg-blue-50 border border-blue-100
+                                      flex items-center justify-center">
+                                                <Bot className="w-3.5 h-3.5 text-blue-400" />
                                             </div>
-                                            <div className="flex-1">
-                                                <div className="text-xs font-bold text-blue-600 mb-2">
-                                                    Executing step…
-                                                </div>
-                                                {/* Latest log */}
+                                            <div>
+                                                <p className="text-xs font-bold text-blue-600">Executing step…</p>
                                                 {runningStep.logs.length > 0 && (
-                                                    <p className="text-xs text-gray-500 font-medium">
+                                                    <p className="text-xs text-gray-500 font-medium mt-0.5">
                                                         {runningStep.logs[runningStep.logs.length - 1]?.message}
                                                     </p>
                                                 )}
@@ -260,26 +270,27 @@ export default function LiveOutputPanel() {
                                         </div>
 
                                         {/* Shimmer lines */}
-                                        <div className="space-y-2.5 mt-4">
-                                            {[100, 85, 92, 70].map((w, i) => (
+                                        <div className="space-y-3">
+                                            {[100, 88, 94, 72, 85].map((w, i) => (
                                                 <div
                                                     key={i}
                                                     className="shimmer h-3 rounded-full"
-                                                    style={{ width: `${w}%`, opacity: 1 - i * 0.15 }}
+                                                    style={{ width: `${w}%`, opacity: 1.1 - i * 0.12 }}
                                                 />
                                             ))}
                                         </div>
-
-                                        {/* Cursor */}
-                                        <div className="mt-4 flex items-center gap-1.5">
-                                            <span className="type-cursor" />
-                                        </div>
+                                        <motion.div
+                                            className="mt-5 h-1 rounded-full bg-gradient-to-r from-blue-200 via-violet-300 to-blue-200"
+                                            animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+                                            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                                            style={{ backgroundSize: '200% 100%' }}
+                                        />
                                     </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
 
-                        <div ref={bottomRef} className="h-16" />
+                        <div ref={bottomRef} className="h-20" />
                     </div>
                 )}
             </div>
@@ -301,7 +312,7 @@ function EmptyOutputState({ hasWorkflow }: { hasWorkflow: boolean }) {
             <p className="text-base font-bold text-gray-700 mb-2">Output will appear here</p>
             <p className="text-sm text-gray-400 leading-relaxed max-w-xs font-medium">
                 {hasWorkflow
-                    ? 'Hit Start Execution in the right panel — output streams in as each step completes'
+                    ? 'Hit Start in the right panel — output streams in as each step completes'
                     : 'Enter a goal in the sidebar, plan steps, then start execution'
                 }
             </p>
