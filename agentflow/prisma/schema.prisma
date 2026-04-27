@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id            String    @id @default(cuid())
+  userId        String
+  goal          String
+  status        String    @default("idle")
+  executionMode String    @default("auto")
+  finalOutput   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  steps         Step[]
+  chatMessages  ChatMessage[]
+
+  @@index([userId])
+}
+
+model Step {
+  id          String   @id @default(cuid())
+  workflowId  String
+  stepKey     String   // step_1, step_2 etc
+  title       String
+  description String
+  status      String   @default("pending")
+  output      String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  position    Int
+  createdAt   DateTime @default(now())
+
+  logs        Log[]
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  stepId    String
+  message   String
+  level     String   @default("info")
+  timestamp DateTime @default(now())
+
+  step      Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@index([stepId])
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  workflowId String
+  role       String
+  content    String
+  timestamp  DateTime @default(now())
+
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}

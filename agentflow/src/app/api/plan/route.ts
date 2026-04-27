@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { generateText } from 'ai';
-import { planningModel } from '@/lib/ai';
+import { openrouter } from '@/lib/ai';
+import { withRetry } from '@/lib/retry';
+import { validateGoal } from '@/lib/env';
 
 const SYSTEM_PROMPT = `You are AgentFlow's task planning AI.
 Given a user's goal, break it into 4–7 clear, actionable steps.
@@ -22,40 +25,37 @@ Rules:
 
 export async function POST(req: NextRequest) {
   try {
-    const { goal } = await req.json();
-
-    if (!goal || typeof goal !== 'string' || goal.trim().length < 3) {
-      return NextResponse.json(
-        { error: 'Goal must be at least 3 characters.' },
-        { status: 400 },
-      );
+    /* Auth check */
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { text } = await generateText({
-      model: planningModel,
-      system: SYSTEM_PROMPT,
-      prompt: `Goal: ${goal.trim()}`,
-      maxTokens: 1024,
-    });
+    const body = await req.json();
+    const goal = validateGoal(body.goal);
 
-    console.log('[/api/plan] raw response:', text);
+    const { text } = await withRetry(() =>
+      generateText({
+        model: openrouter('deepseek/deepseek-v3.2'),
+        system: SYSTEM_PROMPT,
+        prompt: `Goal: ${goal}`,
+        maxTokens: 1024,
+      })
+    );
 
-    // Extract JSON array — handles any extra text Gemma adds around it
     const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new SyntaxError(`No JSON array found in response: ${text}`);
-    }
+    if (!jsonMatch) throw new SyntaxError('No JSON array found in response');
 
     const steps = JSON.parse(jsonMatch[0]);
-
     if (!Array.isArray(steps) || steps.length === 0) {
-      throw new Error('Model returned empty or invalid steps array');
+      throw new Error('Model returned empty steps');
     }
 
-    // Validate each step has required fields
-    const validated = steps.map((s: { id?: string; title?: string; description?: string }, i: number) => ({
-      id:          s.id          ?? `step_${i + 1}`,
-      title:       s.title       ?? `Step ${i + 1}`,
+    const validated = steps.map((s: {
+      id?: string; title?: string; description?: string;
+    }, i: number) => ({
+      id: s.id ?? `step_${i + 1}`,
+      title: s.title ?? `Step ${i + 1}`,
       description: s.description ?? '',
     }));
 
@@ -63,15 +63,8 @@ export async function POST(req: NextRequest) {
 
   } catch (err: unknown) {
     console.error('[/api/plan] error:', err instanceof Error ? err.message : err);
-
     return NextResponse.json(
-      {
-        error: err instanceof SyntaxError
-          ? 'AI returned a malformed plan — please try again.'
-          : err instanceof Error
-            ? err.message
-            : 'Failed to generate plan.',
-      },
+      { error: err instanceof Error ? err.message : 'Failed to generate plan.' },
       { status: 500 },
     );
   }

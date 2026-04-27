@@ -83,20 +83,18 @@ const md = {
 function GlowReveal({ children }: { children: React.ReactNode }) {
     return (
         <motion.div
-            initial={{ opacity: 0, filter: 'blur(8px)' }}
+            initial={{ opacity: 0, filter: 'blur(6px)' }}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="relative"
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="relative overflow-hidden"
         >
-            {/* Sweep shine overlay */}
             <motion.div
-                initial={{ x: '-100%', opacity: 0.7 }}
-                animate={{ x: '200%', opacity: 0 }}
-                transition={{ duration: 1.4, ease: 'easeOut', delay: 0.1 }}
+                initial={{ x: '-100%' }}
+                animate={{ x: '250%' }}
+                transition={{ duration: 1.2, ease: 'easeOut', delay: 0.05 }}
                 className="absolute inset-0 z-10 pointer-events-none"
                 style={{
-                    background: 'linear-gradient(105deg, transparent 30%, rgba(139,92,246,0.12) 50%, rgba(59,130,246,0.10) 60%, transparent 70%)',
-                    mixBlendMode: 'screen',
+                    background: 'linear-gradient(105deg, transparent 35%, rgba(139,92,246,0.10) 50%, rgba(59,130,246,0.08) 58%, transparent 68%)',
                 }}
             />
             {children}
@@ -198,7 +196,7 @@ export default function LiveOutputPanel() {
                                     {/* Step label row */}
                                     <div className="flex items-center gap-3 mb-5">
                                         <div className="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-200
-                                    flex items-center justify-center flex-shrink-0">
+                      flex items-center justify-center flex-shrink-0">
                                             <span className="text-[9px] font-black text-emerald-600">
                                                 {String(i + 1).padStart(2, '0')}
                                             </span>
@@ -209,7 +207,7 @@ export default function LiveOutputPanel() {
                                         <div className="flex-1 h-px bg-black/[0.05]" />
                                     </div>
 
-                                    {/* Output card with typewriter */}
+                                    {/* ✅ GlowReveal wrapping fully-rendered ReactMarkdown — never raw text */}
                                     <div className="bg-white rounded-2xl border border-black/[0.06] px-8 py-6 shadow-sm">
                                         <GlowReveal>
                                             <ReactMarkdown
@@ -221,7 +219,6 @@ export default function LiveOutputPanel() {
                                         </GlowReveal>
                                     </div>
 
-                                    {/* Separator between steps */}
                                     {i < completedSteps.length - 1 && (
                                         <div className="mt-10 flex items-center gap-3">
                                             <div className="flex-1 h-px bg-black/[0.04]" />

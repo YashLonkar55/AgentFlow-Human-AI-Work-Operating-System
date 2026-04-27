@@ -1,68 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { generateText } from 'ai';
 import { openrouter } from '@/lib/ai';
+import { withRetry } from '@/lib/retry';
 
-const SYSTEM_PROMPT = `You are AgentFlow's execution AI.
-You execute a single step of a larger workflow and produce real, useful output.
+const SYSTEM_PROMPT = `You are an AI execution agent. Execute the given task step and produce detailed, useful output.
 
-You MUST respond in this EXACT format — copy it exactly:
+Format your response EXACTLY like this:
 
-LOG: <what you are starting>
-LOG: <progress update>
-LOG: <another update>
-LOG: <almost done>
+LOG: Starting task
+LOG: Processing information
+LOG: Generating output
+LOG: Finalizing results
 OUTPUT_START
-<your output here in clean markdown>
+[Your detailed markdown output here]
 OUTPUT_END
 
-MARKDOWN RULES for your output section:
-- Use ## for main headings, ### for subheadings
-- Use **bold** for key terms
-- Use bullet lists (- item) for lists
-- Use numbered lists (1. item) for steps
-- Use > for key insights
-- Minimum 150 words of actual useful content
-- Be specific, concrete, and actionable
-
-CRITICAL RULES:
-- OUTPUT_START must be on its own line
-- OUTPUT_END must be on its own line
-- Everything between OUTPUT_START and OUTPUT_END is your actual output
-- Do NOT add any text after OUTPUT_END`;
+Use markdown formatting in your output: ## headings, **bold**, bullet points, numbered lists.`;
 
 export async function POST(req: NextRequest) {
     try {
-        const { goal, step, stepIndex, totalSteps, previousOutputs } = await req.json();
+        const { userId } = await auth();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { goal, step, stepIndex, totalSteps, previousOutputs, userFeedback } = await req.json();
+
+        if (!goal || !step) {
+            return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+        }
 
         const context = previousOutputs?.length > 0
-            ? `\nContext from previous steps:\n${previousOutputs
-                .map((p: { title: string; output: string }) => `[${p.title}]:\n${p.output}`)
-                .join('\n\n')}`
+            ? `Previous work:\n${previousOutputs
+                .map((p: { title: string; output: string }) => `${p.title}: ${p.output?.slice(0, 300)}`)
+                .join('\n')}`
             : '';
 
-        const { text } = await generateText({
-            model: openrouter('openai/gpt-5-nano'),
-            system: SYSTEM_PROMPT,
-            prompt: `Overall goal: ${goal}
+        const feedbackLine = userFeedback
+            ? `\nUser feedback on previous attempt: ${userFeedback}`
+            : '';
 
-Executing step ${stepIndex + 1} of ${totalSteps}:
-Title: ${step.title}
-Description: ${step.description}
-${context}
-
-Execute this step now. Follow the format exactly with LOG lines then OUTPUT_START...OUTPUT_END.`,
-            maxTokens: 1500,
-        });
-
-        console.log('[/api/execute] raw text:', text);
+        const { text } = await withRetry(() =>
+            generateText({
+                model: openrouter('deepseek/deepseek-v3.2'),
+                system: SYSTEM_PROMPT,
+                prompt: `Goal: ${goal}\nStep ${stepIndex + 1}/${totalSteps}: ${step.title}\nWhat to do: ${step.description}\n${context}${feedbackLine}\n\nExecute this step now.`,
+                maxOutputTokens: 1500,
+            }),
+            { maxAttempts: 3, baseDelayMs: 2000 },
+        );
 
         return NextResponse.json({ text });
 
-    } catch (err) {
-        console.error('[/api/execute] error:', err);
-        return NextResponse.json(
-            { error: 'Execution failed', text: '' },
-            { status: 500 },
-        );
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Execution failed';
+        console.error('[/api/execute] error:', msg);
+        return NextResponse.json({ error: msg, text: '' }, { status: 500 });
     }
 }

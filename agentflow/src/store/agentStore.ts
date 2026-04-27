@@ -53,25 +53,43 @@ export const useAgentStore = create<AgentStore>()(
     executionMode: 'auto',
 
     planWorkflow: async (goal: string) => {
+      const newWorkflowId = crypto.randomUUID();
+
       set(s => {
         s.isPlanning = true;
-        s.planError = null;
-        s.workflow = {
-          id: crypto.randomUUID(),
-          goal: goal.trim(),
-          steps: [],
-          status: 'planning',
+        s.planError  = null;
+        s.workflow   = {
+          id:               newWorkflowId,
+          goal:             goal.trim(),
+          steps:            [],
+          status:           'planning',
           currentStepIndex: 0,
-          executionMode: 'auto',
-          createdAt: new Date(),
+          executionMode:    'auto',
+          createdAt:        new Date(),
         };
       });
 
+      /* ── Save to DB immediately (like ChatGPT creates chat on first message) ── */
+      fetch('/api/workflows', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflow: {
+            id:           newWorkflowId,
+            goal:         goal.trim(),
+            status:       'planning',
+            executionMode: 'auto',
+            steps:        [],
+          },
+          chatMessages: [],
+        }),
+      }).catch(err => console.error('[store] failed to create workflow record:', err));
+
       try {
-        const res = await fetch('/api/plan', {
-          method: 'POST',
+        const res  = await fetch('/api/plan', {
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ goal: goal.trim() }),
+          body:    JSON.stringify({ goal: goal.trim() }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? 'Unknown error');
@@ -79,25 +97,36 @@ export const useAgentStore = create<AgentStore>()(
         const steps: AgentStep[] = data.steps.map((s: {
           id: string; title: string; description: string;
         }) => ({
-          id: s.id,
-          title: s.title,
+          id:          s.id,
+          title:       s.title,
           description: s.description,
-          status: 'pending' as StepStatus,
-          logs: [],
+          status:      'pending' as StepStatus,
+          logs:        [],
         }));
 
         set(s => {
           if (s.workflow) {
-            s.workflow.steps = steps;
+            s.workflow.steps  = steps;
             s.workflow.status = 'idle';
           }
           s.isPlanning = false;
         });
+
+        /* ── Update DB record with steps ── */
+        fetch(`/api/workflows/${newWorkflowId}`, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'idle',
+            steps:  steps,
+          }),
+        }).catch(console.error);
+
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to plan';
         set(s => {
           s.isPlanning = false;
-          s.planError = msg;
+          s.planError  = msg;
           if (s.workflow) s.workflow.status = 'failed';
         });
       }

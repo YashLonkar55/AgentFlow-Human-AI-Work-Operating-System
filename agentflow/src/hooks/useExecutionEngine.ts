@@ -206,6 +206,20 @@ export function useExecutionEngine() {
 
             setFinalOutput(finalOutput);
             setWorkflowStatus('completed');
+
+            /* ── Sync final state to DB ── */
+            const finalWorkflow = gs().workflow;
+            if (finalWorkflow) {
+                fetch(`/api/workflows/${finalWorkflow.id}`, {
+                    method:  'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status:      'completed',
+                        finalOutput: finalOutput,
+                        steps:       finalWorkflow.steps,
+                    }),
+                }).catch(console.error);
+            }
         }
 
         isRunningRef.current = false;

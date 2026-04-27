@@ -10,11 +10,16 @@ import ExecutionPanel from '@/components/layout/ExecutionPanel';
 import FinalOutput from '@/components/layout/FinalOutput';
 import CustomCursor from '@/components/landing/CustomCursor';
 import { useAgentStore } from '@/store/agentStore';
+import { AppErrorBoundary } from '@/components/errors/ErrorBoundary';
+import { useRestoreWorkflow } from '@/hooks/useRestoreWorkflow';
 
 export default function AppPage() {
   const router = useRouter();
   const { workflow } = useAgentStore();
   const [viewMode, setViewMode] = useState<'execution' | 'output'>('execution');
+
+  // Restore last workflow from DB on load
+  useRestoreWorkflow();
 
   useEffect(() => {
     if (workflow?.status === 'completed') {
@@ -86,7 +91,9 @@ export default function AppPage() {
           className="flex-shrink-0 border-r border-black/[0.06]"
           style={{ width: 'var(--sidebar-width)' }}
         >
-          <Sidebar />
+          <AppErrorBoundary>
+            <Sidebar />
+          </AppErrorBoundary>
         </motion.div>
 
         {/* Center — Live Output / Final Output */}
@@ -106,7 +113,9 @@ export default function AppPage() {
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0"
               >
-                <LiveOutputPanel />
+                <AppErrorBoundary>
+                  <LiveOutputPanel />
+                </AppErrorBoundary>
               </motion.div>
             ) : (
               <motion.div
@@ -132,10 +141,12 @@ export default function AppPage() {
           className="flex-shrink-0 border-l border-black/[0.06]"
           style={{ width: '300px' }}
         >
-          <ExecutionPanel
-            onViewOutput={() => setViewMode('output')}
-            showOutputToggle={isCompleted}
-          />
+          <AppErrorBoundary>
+            <ExecutionPanel
+              onViewOutput={() => setViewMode('output')}
+              showOutputToggle={isCompleted}
+            />
+          </AppErrorBoundary>
         </motion.div>
 
       </div>
@@ -148,13 +159,13 @@ function StatusPill() {
   const status = isPlanning ? 'planning' : workflow?.status ?? 'idle';
 
   const CONFIG: Record<string, { dot: string; label: string; text: string; bg: string }> = {
-    idle:               { dot: 'bg-gray-300',                 label: 'No active workflow', text: 'text-gray-500',    bg: 'bg-white'       },
-    planning:           { dot: 'bg-blue-400 animate-pulse',   label: 'Planning steps…',    text: 'text-blue-600',   bg: 'bg-blue-50'     },
-    running:            { dot: 'bg-violet-400 animate-pulse', label: 'Agent running',      text: 'text-violet-600', bg: 'bg-violet-50'   },
-    paused:             { dot: 'bg-amber-400',                label: 'Paused',             text: 'text-amber-600',  bg: 'bg-amber-50'    },
-    awaiting_approval:  { dot: 'bg-violet-400 animate-pulse', label: 'Awaiting approval',  text: 'text-violet-600', bg: 'bg-violet-50'   },
-    completed:          { dot: 'bg-emerald-400',              label: 'Workflow complete',   text: 'text-emerald-600',bg: 'bg-emerald-50'  },
-    failed:             { dot: 'bg-red-400',                  label: 'Run failed',          text: 'text-red-600',    bg: 'bg-red-50'      },
+    idle: { dot: 'bg-gray-300', label: 'No active workflow', text: 'text-gray-500', bg: 'bg-white' },
+    planning: { dot: 'bg-blue-400 animate-pulse', label: 'Planning steps…', text: 'text-blue-600', bg: 'bg-blue-50' },
+    running: { dot: 'bg-violet-400 animate-pulse', label: 'Agent running', text: 'text-violet-600', bg: 'bg-violet-50' },
+    paused: { dot: 'bg-amber-400', label: 'Paused', text: 'text-amber-600', bg: 'bg-amber-50' },
+    awaiting_approval: { dot: 'bg-violet-400 animate-pulse', label: 'Awaiting approval', text: 'text-violet-600', bg: 'bg-violet-50' },
+    completed: { dot: 'bg-emerald-400', label: 'Workflow complete', text: 'text-emerald-600', bg: 'bg-emerald-50' },
+    failed: { dot: 'bg-red-400', label: 'Run failed', text: 'text-red-600', bg: 'bg-red-50' },
   };
 
   const c = CONFIG[status] ?? CONFIG.idle;

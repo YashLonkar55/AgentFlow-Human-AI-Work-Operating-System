@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans, Instrument_Serif } from 'next/font/google';
 import { GeistMono } from 'geist/font/mono';
+import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 
 const jakarta = Plus_Jakarta_Sans({
@@ -25,10 +26,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${jakarta.variable} ${instrumentSerif.variable} ${GeistMono.variable}`}>
-        {children}
-      </body>
-    </html>
+    <ClerkProvider afterSignOutUrl="/">
+      <html lang="en">
+        <body className={`${jakarta.variable} ${instrumentSerif.variable} ${GeistMono.variable}`}>
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
