@@ -108,7 +108,7 @@ export default function LiveOutputPanel() {
     const bottomRef = useRef<HTMLDivElement>(null);
 
     const completedSteps = workflow?.steps.filter(
-        s => (s.status === 'completed' || s.status === 'awaiting_approval') && s.output,
+        s => ['completed', 'awaiting_approval', 'skipped'].includes(s.status) && s.output,
     ) ?? [];
 
     const runningStep = workflow?.steps.find(s => s.status === 'running');

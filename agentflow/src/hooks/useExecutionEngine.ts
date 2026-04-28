@@ -123,6 +123,20 @@ export function useExecutionEngine() {
                     completedAt: new Date(),
                 });
                 gs().addLog(step.id, makeLog('Completed successfully', 'success'));
+
+                /* ── Sync this step to DB immediately ── */
+                const currentWorkflow = gs().workflow;
+                if (currentWorkflow) {
+                    fetch(`/api/workflows/${currentWorkflow.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            steps: currentWorkflow.steps,
+                        }),
+                    }).catch(console.error);
+                }
+
+                return true;
             }
 
             return true;
@@ -204,21 +218,25 @@ export function useExecutionEngine() {
                 .map(s => `## ${s.title}\n\n${s.output}`)
                 .join('\n\n---\n\n');
 
+
+            /* ── Sync final state to DB ── */
             setFinalOutput(finalOutput);
             setWorkflowStatus('completed');
 
-            /* ── Sync final state to DB ── */
+            /* ── Final DB sync with everything ── */
             const finalWorkflow = gs().workflow;
             if (finalWorkflow) {
                 fetch(`/api/workflows/${finalWorkflow.id}`, {
-                    method:  'PATCH',
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        status:      'completed',
+                        status: 'completed',
                         finalOutput: finalOutput,
-                        steps:       finalWorkflow.steps,
+                        steps: finalWorkflow.steps,
                     }),
-                }).catch(console.error);
+                })
+                    .then(() => console.log('[engine] workflow saved to DB'))
+                    .catch(console.error);
             }
         }
 

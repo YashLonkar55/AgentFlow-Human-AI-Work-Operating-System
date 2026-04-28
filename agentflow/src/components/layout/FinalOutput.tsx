@@ -598,11 +598,21 @@ export default function FinalOutput({ onViewSteps }: { onViewSteps: () => void }
     const [searchQuery, setSearchQuery] = useState('');
 
     const completedSteps = useMemo(
-        () => workflow?.steps.filter(s => s.status === 'completed' && s.output) ?? [],
+        () => workflow?.steps.filter(s =>
+            (s.status === 'completed' || s.status === 'awaiting_approval' || s.status === 'skipped')
+            && s.output
+        ) ?? [],
         [workflow?.steps],
     );
 
-    const finalOutput = workflow?.finalOutput ?? '';
+    /* Rebuild finalOutput if missing but steps have outputs */
+    const finalOutput = useMemo(() => {
+        if (workflow?.finalOutput) return workflow.finalOutput;
+        if (!completedSteps.length) return '';
+        return completedSteps
+            .map(s => `## ${s.title}\n\n${s.output}`)
+            .join('\n\n---\n\n');
+    }, [workflow?.finalOutput, completedSteps]);
 
     /* Search across all step outputs */
     const searchResults = useMemo(() => {

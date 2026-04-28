@@ -45,18 +45,6 @@ export default function Sidebar() {
 
   const { user } = useUser();
 
-  /* Auto-save when workflow completes */
-  useEffect(() => {
-    if (workflow?.status !== 'completed') return;
-    const { chat } = useAgentStore.getState();
-
-    fetch('/api/workflows', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workflow, chatMessages: chat }),
-    }).catch(err => console.error('Failed to save workflow:', err));
-  }, [workflow?.status]);
-
   const status = workflow?.status ?? 'idle';
   const statusConf = STATUS_MAP[status] ?? STATUS_MAP.idle;
   const canSubmit = !!input.trim() && !isPlanning && status !== 'running';

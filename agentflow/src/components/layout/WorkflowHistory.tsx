@@ -8,8 +8,8 @@ import {
     Trash2, GitBranch,
 } from 'lucide-react';
 import { useAgentStore } from '@/store/agentStore';
-import { StepStatus } from '@/types/agent';
 import { cn } from '@/lib/utils';
+import { restoreWorkflowToStore } from '@/hooks/useRestoreWorkflow';
 
 interface HistoryWorkflow {
     id: string;
@@ -97,37 +97,7 @@ export default function WorkflowHistory({ onClose }: { onClose: () => void }) {
     useEffect(() => { fetchWorkflows(); }, []);
 
     const loadWorkflow = (w: HistoryWorkflow) => {
-        useAgentStore.setState({
-            workflow: {
-                id: w.id,
-                goal: w.goal,
-                status: 'completed',
-                executionMode: (w.executionMode as 'auto' | 'review') ?? 'auto',
-                finalOutput: w.finalOutput,
-                currentStepIndex: w.steps.length - 1,
-                createdAt: new Date(w.createdAt),
-                steps: w.steps
-                    .sort((a, b) => a.position - b.position)
-                    .map(s => ({
-                        id: s.stepKey,
-                        title: s.title,
-                        description: s.description,
-                        status: s.status as StepStatus,
-                        logs: [],
-                        output: s.output,
-                        startedAt: s.startedAt ? new Date(s.startedAt) : undefined,
-                        completedAt: s.completedAt ? new Date(s.completedAt) : undefined,
-                    })),
-            },
-            chat: w.chatMessages.map(m => ({
-                id: m.id,
-                role: m.role as 'user' | 'assistant',
-                content: m.content,
-                timestamp: new Date(m.timestamp),
-            })),
-            isPlanning: false,
-            planError: null,
-        });
+        restoreWorkflowToStore(w);
         onClose();
     };
 

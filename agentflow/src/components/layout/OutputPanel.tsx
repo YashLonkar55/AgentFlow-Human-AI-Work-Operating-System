@@ -15,6 +15,8 @@ const DOT: Record<StepStatus, string> = {
     completed: 'bg-emerald-400 border-emerald-300',
     failed: 'bg-red-400 border-red-300',
     skipped: 'bg-amber-400 border-amber-300',
+    awaiting_approval: 'bg-yellow-400 border-yellow-300 animate-pulse',
+    rejected: 'bg-rose-400 border-rose-300',
 };
 
 const ICON: Record<StepStatus, React.ReactNode> = {
@@ -23,6 +25,8 @@ const ICON: Record<StepStatus, React.ReactNode> = {
     completed: <CheckCircle2 className="w-3 h-3 text-emerald-500" />,
     failed: <XCircle className="w-3 h-3 text-red-500" />,
     skipped: <SkipForward className="w-3 h-3 text-amber-500" />,
+    awaiting_approval: <Clock className="w-3 h-3 text-yellow-500" />,
+    rejected: <XCircle className="w-3 h-3 text-rose-500" />,
 };
 
 function StepRow({ step, index, isLast }: {

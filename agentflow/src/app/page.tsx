@@ -75,7 +75,7 @@ function CyclingWord() {
   const [phase, setPhase] = useState<'in' | 'out'>('in');
   const [width, setWidth] = useState<number | 'auto'>('auto');
   const measureRef = useRef<HTMLSpanElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Measure each word's width so the container never jumps
   useEffect(() => {
@@ -92,7 +92,7 @@ function CyclingWord() {
         setPhase('in');
       }, 300);
     }, 2000);
-    return () => clearTimeout(timeoutRef.current);
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
   }, [index]);
 
   const w = CYCLE_WORDS[index];
