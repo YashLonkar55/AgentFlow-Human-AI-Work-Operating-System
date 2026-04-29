@@ -4,14 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
 ) {
     try {
         const { userId } = await auth();
         if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { status, finalOutput, steps } = await req.json();
-        const { id } = params;
+        const { id } = await params;
 
         /* Verify ownership */
         const existing = await prisma.workflow.findFirst({ where: { id, userId } });
@@ -57,13 +57,14 @@ export async function PATCH(
 
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
 ) {
     try {
         const { userId } = await auth();
         if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        await prisma.workflow.deleteMany({ where: { id: params.id, userId } });
+        const { id } = await params;
+        await prisma.workflow.deleteMany({ where: { id, userId } });
         return NextResponse.json({ ok: true });
     } catch (err) {
         console.error('[DELETE /api/workflows/[id]]', err);

@@ -38,6 +38,17 @@ export function useExecutionEngine() {
 
     const gs = () => useAgentStore.getState();
 
+    /* ── Helper: sync current workflow state to DB ── */
+    const syncToDB = useCallback((extras?: { status?: string; finalOutput?: string }) => {
+        const w = gs().workflow;
+        if (!w) return;
+        fetch(`/api/workflows/${w.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ steps: w.steps, ...extras }),
+        }).catch(err => console.error('[engine] DB sync failed:', err));
+    }, []);
+
     /* ── Execute one step ── */
     const executeStep = useCallback(async (
         step: AgentStep,
@@ -116,6 +127,7 @@ export function useExecutionEngine() {
                     output,
                 });
                 gs().setWorkflowStatus('awaiting_approval');
+                syncToDB({ status: 'awaiting_approval' });
             } else {
                 gs().updateStep(step.id, {
                     status: 'completed',
@@ -123,18 +135,7 @@ export function useExecutionEngine() {
                     completedAt: new Date(),
                 });
                 gs().addLog(step.id, makeLog('Completed successfully', 'success'));
-
-                /* ── Sync this step to DB immediately ── */
-                const currentWorkflow = gs().workflow;
-                if (currentWorkflow) {
-                    fetch(`/api/workflows/${currentWorkflow.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            steps: currentWorkflow.steps,
-                        }),
-                    }).catch(console.error);
-                }
+                syncToDB();
 
                 return true;
             }
@@ -153,7 +154,7 @@ export function useExecutionEngine() {
             ));
             return false;
         }
-    }, []);
+    }, [syncToDB]);
 
     /* ── Main execution loop ── */
     const start = useCallback(async (mode: ExecutionMode) => {
@@ -203,6 +204,7 @@ export function useExecutionEngine() {
                 }
 
                 if (stoppedRef.current) break;
+                syncToDB();
                 gs().setWorkflowStatus('running');
             }
 
@@ -219,29 +221,14 @@ export function useExecutionEngine() {
                 .join('\n\n---\n\n');
 
 
-            /* ── Sync final state to DB ── */
             setFinalOutput(finalOutput);
             setWorkflowStatus('completed');
-
-            /* ── Final DB sync with everything ── */
-            const finalWorkflow = gs().workflow;
-            if (finalWorkflow) {
-                fetch(`/api/workflows/${finalWorkflow.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        status: 'completed',
-                        finalOutput: finalOutput,
-                        steps: finalWorkflow.steps,
-                    }),
-                })
-                    .then(() => console.log('[engine] workflow saved to DB'))
-                    .catch(console.error);
-            }
+            syncToDB({ status: 'completed', finalOutput });
+            console.log('[engine] workflow completed — synced to DB');
         }
 
         isRunningRef.current = false;
-    }, [executeStep]);
+    }, [executeStep, syncToDB]);
 
     const pause = useCallback(() => {
         pausedRef.current = true;
