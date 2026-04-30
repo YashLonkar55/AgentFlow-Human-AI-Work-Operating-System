@@ -9,7 +9,6 @@ import {
 import { useAgentStore } from '@/store/agentStore';
 import { cn } from '@/lib/utils';
 import ChatWindow from '@/components/chat/ChatWindow';
-import { useUser, UserButton } from '@clerk/nextjs';
 import { History } from 'lucide-react';
 import WorkflowHistory from '@/components/layout/WorkflowHistory';
 
@@ -43,8 +42,6 @@ export default function Sidebar() {
     planWorkflow, resetWorkflow, setPlanError,
   } = useAgentStore();
 
-  const { user } = useUser();
-
   const status = workflow?.status ?? 'idle';
   const statusConf = STATUS_MAP[status] ?? STATUS_MAP.idle;
   const canSubmit = !!input.trim() && !isPlanning && status !== 'running';
@@ -58,29 +55,17 @@ export default function Sidebar() {
     <div className="flex flex-col h-full overflow-hidden"
       style={{ background: 'rgba(255,255,255,0.55)' }}>
 
-      {/* ── Top user bar ── */}
+      {/* ── Top bar — just history toggle ── */}
       <div className="flex items-center justify-between px-4 pt-3 pb-3
-                      border-b border-black/[0.05]">
-        <div className="flex items-center gap-2.5">
-          <UserButton />
-          <div>
-            <p className="text-xs font-bold text-gray-800 leading-none">
-              {user?.firstName ?? 'User'}
-            </p>
-            <p className="text-[10px] text-gray-400 font-medium mt-0.5 truncate max-w-[120px]">
-              {user?.primaryEmailAddress?.emailAddress}
-            </p>
-          </div>
-        </div>
+                border-b border-black/[0.05]">
+        <span className="text-xs font-bold text-gray-700">Workspace</span>
 
-        {/* History toggle */}
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.92 }}
           onClick={() => setShowHistory(!showHistory)}
           className={cn(
-            'w-7 h-7 rounded-xl flex items-center justify-center',
-            'border transition-all',
+            'w-7 h-7 rounded-xl flex items-center justify-center border transition-all',
             showHistory
               ? 'bg-violet-50 border-violet-200 text-violet-500'
               : 'bg-white border-black/[0.07] text-gray-400 hover:text-gray-700',

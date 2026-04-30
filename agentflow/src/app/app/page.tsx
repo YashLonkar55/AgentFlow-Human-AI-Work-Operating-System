@@ -12,6 +12,7 @@ import CustomCursor from '@/components/landing/CustomCursor';
 import { useAgentStore } from '@/store/agentStore';
 import { AppErrorBoundary } from '@/components/errors/ErrorBoundary';
 import { useRestoreWorkflow } from '@/hooks/useRestoreWorkflow';
+import { UserButton } from '@clerk/nextjs';
 
 export default function AppPage() {
   const router = useRouter();
@@ -68,16 +69,29 @@ export default function AppPage() {
         <StatusPill />
 
         {/* Back */}
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          onClick={() => router.push('/')}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-500
-                     hover:text-gray-900 px-3 py-1.5 rounded-xl
-                     hover:bg-black/[0.04] transition-all"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back
-        </motion.button>
+        <div className="flex items-center gap-3">
+          {/* Back */}
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-gray-500
+               hover:text-gray-900 px-3 py-1.5 rounded-xl
+               hover:bg-black/[0.04] transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back
+          </motion.button>
+          {/* User profile + sign out */}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: 'w-7 h-7',
+              },
+            }}
+          />
+        </div>
       </motion.header>
 
       {/* 3-panel layout */}
